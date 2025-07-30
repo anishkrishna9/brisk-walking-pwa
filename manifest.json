@@ -1,7 +1,7 @@
 {
   "name": "Brisk Walking App",
   "short_name": "BriskWalk",
-  "start_url": "./index.html",
+  "start_url": "/brisk-walking-pwa/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#317EFB",
