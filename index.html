@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Brisk Walking App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4caf50">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial; padding: 20px; text-align: center; }
+    #status { font-size: 22px; margin-top: 20px; }
+    input[type=number] { padding: 8px; width: 100px; font-size: 16px; margin: 10px; }
+    .toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background-color: #333; color: white; padding: 14px 24px;
+      border-radius: 6px; font-size: 16px; opacity: 0;
+      animation: fadeInOut 3s ease-in-out; z-index: 9999;
+    }
+    @keyframes fadeInOut {
+      0% { opacity: 0; bottom: 20px; }
+      10% { opacity: 1; bottom: 30px; }
+      90% { opacity: 1; bottom: 30px; }
+      100% { opacity: 0; bottom: 40px; }
+    }
+    #chartContainer { width: 80%; margin: 40px auto; display: none; }
+  </style>
+</head>
+<body>
+  <h1>Brisk Walking App</h1>
+  <label>Enter duration (min): </label>
+  <input type="number" id="durationInput" min="1" value="15" /><br>
+  <button onclick="startWalk()" id="startBtn">Start</button>
+  <button onclick="stopWalk()" id="stopBtn" disabled>Stop</button>
+  <div id="status">Status: Not started</div>
+  <div id="chartContainer"><canvas id="summaryChart"></canvas></div>
+  <audio id="beepAudio"><source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg"></audio>
+
+  <script>
+    let intervalId = null, mode = "brisk", totalSeconds = 0, briskMinutes = 0, slowMinutes = 0;
+    let totalDurationMinutes = 15, currentPhaseSeconds = 0;
+    const beep = () => document.getElementById('beepAudio').play();
+    const vibrate = (pattern = [200, 100, 200]) => navigator.vibrate?.(pattern);
+    const showToast = (msg) => {
+      const toast = document.createElement("div");
+      toast.className = "toast"; toast.innerText = msg;
+      document.body.appendChild(toast); setTimeout(() => toast.remove(), 3000);
+    };
+    const formatTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    const updateStatus = () => {
+      document.getElementById("status").innerText = `Status: ${mode === "brisk" ? "Brisk 🏃" : "Slow 🚶"} | Time: ${formatTime(totalSeconds)}`;
+    };
+    function startWalk() {
+      totalDurationMinutes = parseInt(document.getElementById("durationInput").value);
+      if (isNaN(totalDurationMinutes) || totalDurationMinutes <= 0) return showToast("Invalid duration");
+      document.getElementById("startBtn").disabled = true;
+      document.getElementById("stopBtn").disabled = false;
+      document.getElementById("chartContainer").style.display = "none";
+      totalSeconds = briskMinutes = slowMinutes = currentPhaseSeconds = 0; mode = "brisk";
+      updateStatus(); beep(); vibrate(); showToast("Start Brisk Walk 🏃");
+      intervalId = setInterval(() => {
+        totalSeconds++; currentPhaseSeconds++;
+        if (mode === "brisk" && totalSeconds % 60 === 0) briskMinutes++;
+        if (mode === "slow" && totalSeconds % 60 === 0) slowMinutes++;
+        updateStatus();
+        if (currentPhaseSeconds >= 180) {
+          mode = mode === "brisk" ? "slow" : "brisk";
+          currentPhaseSeconds = 0;
+          const msg = mode === "brisk" ? "Start Brisk Walk 🏃" : "Slow Down 🚶";
+          beep(); vibrate(); showToast(msg);
+        }
+        if (totalSeconds >= totalDurationMinutes * 60) stopWalk();
+      }, 1000);
+    }
+    function stopWalk() {
+      clearInterval(intervalId);
+      document.getElementById("startBtn").disabled = false;
+      document.getElementById("stopBtn").disabled = true;
+      document.getElementById("status").innerText = "Status: Walk Stopped";
+      const mins = Math.floor(totalSeconds/60), cal = (briskMinutes*5)+(slowMinutes*2.5);
+      const steps = (briskMinutes*100)+(slowMinutes*70);
+      beep(); vibrate([500, 200, 500]); showToast("Walk complete ✅");
+      showGraph(mins, cal, steps);
+    }
+    function showGraph(mins, cal, steps) {
+      document.getElementById("chartContainer").style.display = "block";
+      const ctx = document.getElementById('summaryChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Duration (min)', 'Calories', 'Steps'],
+          datasets: [{
+            label: 'Summary',
+            data: [mins, cal.toFixed(1), steps],
+            backgroundColor: ['#4caf50', '#f44336', '#2196f3']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false }, title: { display: true, text: 'Walk Summary' } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('Service Worker Registered'))
+        .catch(err => console.error('SW registration failed:', err));
+    }
+  </script>
+</body>
+</html>
